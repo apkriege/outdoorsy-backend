@@ -1,23 +1,15 @@
 package server
 
 import (
+	"github.com/apkriege/outdoorsy-backend/controllers/rentals"
 	"github.com/gin-gonic/gin"
 )
 
-func setupRouter() *gin.Engine {
-	r := gin.Default()
+func SetupRouter() *gin.Engine {
+	router := gin.Default()
 
-	r.GET("/api/users", getRentals)
-	// r.GET("/api/users/:id", getUser)
-	// r.POST("/api/users", createUser)
-	// r.PUT("/api/users/:id", updateUser)
-	// r.DELETE("/api/users/:id", deleteUser)
+	router.GET("/rentals", rentals.GetRentals)
+	router.GET("/rentals/:id", rentals.GetRental)
 
-	return r
-}
-
-func getRentals(c *gin.Context) {
-	c.JSON(200, gin.H{
-		"message": "pong",
-	})
+	return router
 }
