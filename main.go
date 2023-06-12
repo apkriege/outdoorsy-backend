@@ -10,7 +10,6 @@ import (
 
 func main() {
 	fmt.Println("Outdoorsy Backend")
-
 	gin.SetMode(gin.ReleaseMode)
 
 	err := db.Init()

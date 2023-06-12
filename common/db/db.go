@@ -11,7 +11,7 @@ var db *gorm.DB
 
 // Init initializes the database connection
 func Init() error {
-	dsn := "host=localhost user=root password=root dbname=testingwithrentals port=5434 sslmode=disable"
+	dsn := "host=127.0.0.1 user=root password=root dbname=testingwithrentals port=5434 sslmode=disable"
 
 	var err error
 	db, err = gorm.Open(postgres.Open(dsn), &gorm.Config{})
@@ -24,7 +24,7 @@ func Init() error {
 
 // GetDB returns the database connection
 func GetDB() *gorm.DB {
-	fmt.Println("Get DB: ", db)
+	fmt.Println("DB: ", db)
 	return db
 }
 
