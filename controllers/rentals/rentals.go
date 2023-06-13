@@ -2,6 +2,7 @@ package rentals
 
 import (
 	"fmt"
+	"net/http"
 	"strconv"
 	"strings"
 
@@ -49,6 +50,7 @@ type RentalQuery struct {
 	Query *gorm.DB
 }
 
+// GetRental endpoint returns a single rental
 func GetRental(c *gin.Context) {
 	db := db.GetDB()
 	id := c.Param("id")
@@ -57,75 +59,80 @@ func GetRental(c *gin.Context) {
 	db.Table("rentals").Where("id = ?", id).Preload("User").Find(&rental)
 
 	r := modelRental(&rental)
-	utils.ReturnSuccess(c, r)
+	c.JSON(http.StatusOK, r)
 }
 
+// GetRentals endpoint returns a list of rentals
 func GetRentals(c *gin.Context) {
 	db := db.GetDB()
 	queryString := c.Request.URL.Query()
-	var rentals []models.Rental
 
-	var query = RentalQuery{
-		Query: db.Table("rentals").Preload("User"),
-	}
+	query := NewRentalQuery(db)
+	applyFilters(query, queryString)
 
-	near := queryString.Get("near")
-	if near != "" {
-		query.addNearFilter(near)
-	}
-
-	ids := queryString.Get("ids")
-	if ids != "" {
-		query.addIdsFilter(ids)
-	}
-
-	priceMin := queryString.Get("price_min")
-	if priceMin != "" {
-		query.addPriceMinFilter(priceMin)
-	}
-
-	priceMax := queryString.Get("price_max")
-	if priceMax != "" {
-		query.addPriceMaxFilter(priceMax)
-	}
-
-	limit := queryString.Get("limit")
-	if limit != "" {
-		query.addLimitFilter(limit)
-	}
-
-	offset := queryString.Get("offset")
-	if offset != "" {
-		query.addOffsetFilter(offset)
-	}
-
-	sort := queryString.Get("sort")
-	if sort != "" {
-		query.addSortFilter(sort)
-	}
-
-	err := query.Query.Find(&rentals).Error
+	rentals, err := query.FindRentals()
 	if err != nil {
-		utils.ReturnError(c, "Error fetching rentals")
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Error fetching rentals"})
 		return
 	}
 
 	if len(rentals) == 0 {
-		utils.ReturnError(c, "No rentals found")
+		c.JSON(http.StatusNotFound, gin.H{"error": "No rentals found"})
 		return
 	}
 
 	modeledRentals := []Rental{}
-	for i := 0; i < len(rentals); i++ {
-		r := modelRental(&rentals[i])
-		modeledRentals = append(modeledRentals, r)
+	for _, r := range rentals {
+		modeledRentals = append(modeledRentals, modelRental(&r))
 	}
 
 	utils.ReturnSuccess(c, modeledRentals)
 }
 
+// NewRentalQuery returns a new RentalQuery struct
+func NewRentalQuery(db *gorm.DB) *RentalQuery {
+	return &RentalQuery{
+		Query: db.Table("rentals").Preload("User"),
+	}
+}
+
+// applyFilters applies the filters to the query
+func applyFilters(query *RentalQuery, queryString map[string][]string) {
+	for key, values := range queryString {
+		value := values[0]
+		if value != "" {
+			switch key {
+			case "near":
+				query.addNearFilter(value)
+			case "ids":
+				query.addIdsFilter(value)
+			case "price_min":
+				query.addPriceMinFilter(value)
+			case "price_max":
+				query.addPriceMaxFilter(value)
+			case "limit":
+				query.addLimitFilter(value)
+			case "offset":
+				query.addOffsetFilter(value)
+			case "sort":
+				query.addSortFilter(value)
+			}
+		}
+	}
+}
+
+// FindRentals returns a list of rentals
+func (q *RentalQuery) FindRentals() ([]models.Rental, error) {
+	var rentals []models.Rental
+	err := q.Query.Find(&rentals).Error
+	if err != nil {
+		return nil, err
+	}
+	return rentals, nil
+}
+
 // DATA FILTERS
-func (q RentalQuery) addNearFilter(near string) {
+func (q *RentalQuery) addNearFilter(near string) {
 	coords := strings.Split(near, ",")
 	latitude := coords[0]
 	longitude := coords[1]
@@ -140,32 +147,32 @@ func (q RentalQuery) addNearFilter(near string) {
 	q.Query.Where(nearString)
 }
 
-func (q RentalQuery) addPriceMinFilter(priceMin string) {
+func (q *RentalQuery) addPriceMinFilter(priceMin string) {
 	priceMinInt, _ := strconv.Atoi(priceMin)
 	q.Query.Where("price_per_day >= ?", priceMinInt)
 }
 
-func (q RentalQuery) addPriceMaxFilter(priceMax string) {
+func (q *RentalQuery) addPriceMaxFilter(priceMax string) {
 	priceMaxInt, _ := strconv.Atoi(priceMax)
 	q.Query.Where("price_per_day <= ?", priceMaxInt)
 }
 
-func (q RentalQuery) addLimitFilter(limit string) {
+func (q *RentalQuery) addLimitFilter(limit string) {
 	limitInt, _ := strconv.Atoi(limit)
 	q.Query.Limit(limitInt)
 }
 
-func (q RentalQuery) addOffsetFilter(offset string) {
+func (q *RentalQuery) addOffsetFilter(offset string) {
 	offsetInt, _ := strconv.Atoi(offset)
 	q.Query.Offset(offsetInt)
 }
 
-func (q RentalQuery) addSortFilter(sort string) {
+func (q *RentalQuery) addSortFilter(sort string) {
 	sortBy := sortByMap[sort]
 	q.Query.Order(sortBy)
 }
 
-func (q RentalQuery) addIdsFilter(ids string) {
+func (q *RentalQuery) addIdsFilter(ids string) {
 	idsArr := strings.Split(ids, ",")
 	q.Query.Where("id IN (?)", idsArr)
 }
